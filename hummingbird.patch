@@ -1,0 +1,965 @@
+diff -ur9bBZ a/src/dnsmanager.cpp b/src/dnsmanager.cpp
+--- a/src/dnsmanager.cpp	2022-02-01 17:24:14.542763245 +0100
++++ b/src/dnsmanager.cpp	2022-02-01 08:02:53.068434438 +0100
+@@ -123,19 +123,29 @@
+ {
+     std::ofstream flock;
+ 
+     // If resolv.conf backup does not exist
+     // rename resolv.conf to backup and create a new one
+ 
+     if(access(resolvDotConfBkp.c_str(), F_OK) == -1)
+     {
+         if(rename(resolvDotConf.c_str(), resolvDotConfBkp.c_str()) != 0)
++        {
++            std::ifstream  src(resolvDotConf.c_str(),    std::ios::binary);
++            std::ofstream  dst(resolvDotConfBkp.c_str(), std::ios::binary);
++            dst << src.rdbuf();
++            if (src.fail() || src.bad())
++            	return DNSManager::Error::RESOLV_DOT_CONF_READ_ERROR;
++            if (dst.fail() || dst.bad())
+             return DNSManager::Error::RESOLV_DOT_CONF_RENAME_ERROR;
++            src.close();
++            dst.close();
++        }
+ 
+         flock.open(resolvDotConf.c_str());
+ 
+         if(flock.fail())
+             return DNSManager::Error::RESOLV_DOT_CONF_OPEN_ERROR;
+ 
+         flock << "#" << std::endl;
+         flock << "# Created by AirVPN. Do not edit." << std::endl;
+         flock << "#" << std::endl;
+@@ -301,23 +311,36 @@
+ DNSManager::Error DNSManager::restoreResolvDotConf(void)
+ {
+     DNSManager::Error res = DNSManager::Error::OK;
+ 
+     if(access(resolvDotConfBkp.c_str(), F_OK) != -1)
+     {
+         if(access(resolvDotConf.c_str(), F_OK) != -1)
+         {
+             if(unlink(resolvDotConf.c_str()) != 0)
++            {
++                std::ifstream  src(resolvDotConfBkp.c_str(), std::ios::binary);
++                std::ofstream  dst(resolvDotConf.c_str(),    std::ios::binary);
++                dst << src.rdbuf();
++                if (src.fail() || src.bad())
++                	return DNSManager::Error::RESOLV_DOT_CONF_BKUP_READ_ERROR;
++                if (dst.fail() || dst.bad())
+                 return DNSManager::Error::RESOLV_DOT_CONF_RESTORE_ERROR;
+-
++                src.close();
++                dst.close();
++                if(unlink(resolvDotConfBkp.c_str()) != 0)
++                	return DNSManager::Error::RESOLV_DOT_CONF_BKUP_DELETE_ERROR;
++            }
++            else
++            {
+             if(rename(resolvDotConfBkp.c_str(), resolvDotConf.c_str()) != 0)
+                 return DNSManager::Error::RESOLV_DOT_CONF_RESTORE_ERROR;
+-
++            }
+         }
+         else
+             res = DNSManager::Error::RESOLV_DOT_CONF_OPEN_ERROR;
+     }
+     else
+         res = DNSManager::Error::RESOLV_DOT_CONF_RESTORE_NOT_FOUND;
+ 
+     return res;
+ }
+diff -ur9bBZ a/src/execproc.c b/src/execproc.c
+--- a/src/execproc.c	2022-02-01 17:24:14.542763245 +0100
++++ b/src/execproc.c	2022-02-01 08:02:53.084434388 +0100
+@@ -30,18 +30,19 @@
+ #include <syslog.h>
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <stdio.h>
+ 
+ #define INPUT_FD                  0
+ #define OUTPUT_FD                 1
+ 
+ int fd0 = -1, fd1 = -1, fd2 = -1;
++bool execute_process_report_success = false;
+ 
+ void open_fake_std()
+ {
+     fd0 = open("/dev/null", O_RDONLY);
+     fd1 = open("/dev/null", O_RDWR);
+     fd2 = open("/dev/null", O_RDWR);
+ }
+ 
+ void close_fake_std()
+@@ -62,50 +63,77 @@
+ 
+     if(fd2 != -1)
+     {
+         close(fd2);
+ 
+         fd2 = -1;
+     }
+ }
+ 
++void set_report_all_commands()
++{
++    execute_process_report_success = true;
++}
++
++pid_t report(pid_t retcode, const char *error, const char *input, const char *output, char **args)
++{
++    fprintf(stderr,"exec_process: ");
++	while (*args != NULL)
++	{
++		fprintf(stderr,"%s ", *args);
++		args++;
++	}
++    if (input!=NULL && strlen(input)>0)
++        fprintf(stderr,"\nwith input:\n%s\n", input);
++    if (retcode==0)
++        fprintf(stderr,"succeeded with return code 0\n");
++    else
++        fprintf(stderr,"failed with return code %d (%s)\n", retcode, error);
++    if (output!=NULL && strlen(output)>0)
++        fprintf(stderr,"with output:\n%s\n", output);
++    return retcode;
++}
++
+ pid_t do_execute(char *input, char *output, char *cmd, char **arg)
+ {
+     int parent_pipe[2];
+     int child_pipe[2];
+     pid_t pid;
+ 
+     if(cmd == NULL)
+-        return EXEC_CMD_NOT_FOUND;
++        return report(EXEC_CMD_NOT_FOUND, "command not found", input, NULL, arg);
++
++    if (output!=NULL)
++        *output = '\0';
+ 
+     open_fake_std();
+ 
+     if(pipe(parent_pipe) == -1)
+     {
+         close_fake_std();
+ 
+-        return EXEC_PIPE_ERROR;
++        return report(EXEC_PIPE_ERROR, "parent pipe error", input, NULL, arg);
+     }
+ 
+     if(pipe(child_pipe) == -1)
+     {
+         close_fake_std();
+ 
+-        return EXEC_PIPE_ERROR;
++        return report(EXEC_PIPE_ERROR, "child pipe error", input, NULL, arg);
+     }
+ 
+     pid = fork();
+ 
+     switch(pid)
+     {
+         case -1:
+         {
+-            pid = EXEC_FORK_ERROR;
++            pid = report(EXEC_FORK_ERROR, "fork error", input, NULL, arg);
+         }
+         break;
+ 
+         case 0:
+         {
+             /* child process */
+ 
+             dup2(parent_pipe[INPUT_FD], STDIN_FILENO);
+             dup2(child_pipe[OUTPUT_FD], STDOUT_FILENO);
+@@ -126,19 +154,19 @@
+             close(parent_pipe[INPUT_FD]);
+             close(child_pipe[OUTPUT_FD]);
+ 
+             if(input != NULL)
+             {
+                 if(write(parent_pipe[OUTPUT_FD], input, strlen(input)) == -1)
+                 {
+                     close_fake_std();
+ 
+-                    return -1;
++                    return report(-1, "failed to pipe input to command", input, NULL, arg);
+                 }
+             }
+ 
+             close(parent_pipe[OUTPUT_FD]);
+ 
+             if(output != NULL)
+             {
+                 char c;
+ 
+@@ -205,19 +233,23 @@
+ 
+     va_end(alist);
+ 
+     pid = do_execute(input, output, (char *)cmd, exec_args);
+ 
+     if(pid < 0)
+         return pid;
+ 
+     if(waitpid(pid, &retcode, 0) == -1)
+-        retcode = EXEC_EXIT_ERROR;
++        retcode = report(EXEC_EXIT_ERROR, "child process exit error", input, output, exec_args);
++    else if (retcode != 0)
++    	report(retcode, "return code not 0", input, output, exec_args);
++    else if (execute_process_report_success)
++        report(retcode, "", input, output, exec_args);
+ 
+     return retcode;
+ }
+ 
+ int execute_process_args(char *input, char *output, const char *cmd, char **exec_args)
+ {
+     int retcode;
+     struct stat cmdinfo;
+     pid_t pid;
+@@ -237,19 +269,23 @@
+     if(!(cmdinfo.st_mode & S_IXUSR))
+         return EXEC_CMD_NOT_EXECUTABLE;
+ 
+     pid = do_execute(input, output, (char *)cmd, (char **)exec_args);
+ 
+     if(pid < 0)
+         return pid;
+ 
+     if(waitpid(pid, &retcode, 0) == -1)
+-        retcode = EXEC_EXIT_ERROR;
++        retcode = report(EXEC_EXIT_ERROR, "child process exit error", input, output, exec_args);
++    else if (retcode != 0)
++    	report(retcode, "return code not 0", input, output, exec_args);
++    else if (execute_process_report_success)
++        report(retcode, "", input, output, exec_args);
+ 
+     return retcode;
+ }
+ 
+ void get_exec_path(const char *fname, char *path)
+ {
+     const char *binpath[] = {"/bin/", "/usr/bin/", "/sbin/", "/usr/sbin/"};
+     char fname_path[64];
+     bool fname_found;
+diff -ur9bBZ a/src/hummingbird.cpp b/src/hummingbird.cpp
+--- a/src/hummingbird.cpp	2022-02-01 17:24:14.546763231 +0100
++++ b/src/hummingbird.cpp	2022-02-01 08:02:53.052434488 +0100
+@@ -352,19 +352,19 @@
+     OptionParser::Error optionError;
+     OptionParser::Options parserOptions;
+     NetFilter::Mode network_lock_mode = NetFilter::Mode::AUTO;
+     int ret = 0, timeout = 0, defaultKeyDirection = -1, sslDebugLevel = 0;
+     unsigned int tcp_queue_limit = TCP_QUEUE_LIMIT_DEFAULT;
+     bool eval = false, ncp_disable = false, ignore_dns_push = false, cachePassword = false;
+     bool disableClientCert = false, proxyAllowCleartextAuth = false, autologinSessions = false, retryOnAuthFailed = false;
+     bool tunPersist = false, altProxy = false, dco = false, retry = false;
+     std::string username = "", password = "", response = "", dynamicChallengeCookie = "";
+-    std::string proto = "", ipv6 = "", server = "", port = "", cipher_alg = "", gui_version = HUMMINGBIRD_FULL_NAME;
++    std::string proto = "", allowUnusedAddrFamilies = "", server = "", port = "", cipher_alg = "", gui_version = HUMMINGBIRD_FULL_NAME;
+     std::string compress = "", privateKeyPassword = "", tlsVersionMinOverride = "", tlsCertProfileOverride = "";
+     std::string proxyHost = "", proxyPort = "", proxyUsername = "", proxyPassword = "", peer_info = "", gremlin = "";
+     std::string epki_cert_fn = "", epki_ca_fn = "", epki_key_fn = "";
+ 
+ #ifdef OPENVPN_REMOTE_OVERRIDE
+     std::string remote_override_cmd;
+ #endif
+ 
+     auto cleanup = Cleanup([]()
+@@ -526,21 +526,25 @@
+             response = option->value;
+         }
+         else if(option->longName == "proto")
+         {
+             proto = option->value;
+             
+             if(proto != "udp" && proto != "tcp")
+                 OPENVPN_THROW_EXCEPTION("protocol must be \"udp\" or \"tcp\"");
+         }
+-        else if(option->longName == "ipv6")
++        else if(option->longName == "combined")
+         {
+-            ipv6 = option->value;
++        	allowUnusedAddrFamilies = option->value;
++        }
++        else if(option->longName == "verbose")
++        {
++            set_report_all_commands();
+         }
+         else if(option->longName == "server")
+         {
+             server = option->value;
+         }
+         else if(option->longName == "port")
+         {
+             port = option->value;
+ 
+@@ -664,19 +668,19 @@
+ 
+         config.content = read_profile(profile_filename.c_str(), nullptr);
+ 
+         config.serverOverride = server;
+         config.portOverride = port;
+         config.protoOverride = proto;
+         config.cipherOverrideAlgorithm = cipher_alg;
+         config.connTimeout = timeout;
+         config.compressionMode = compress;
+-        config.ipv6 = ipv6;
++        config.allowUnusedAddrFamilies = allowUnusedAddrFamilies;
+         config.tcpQueueLimit = tcp_queue_limit;
+         config.disableNCP = ncp_disable;
+         config.privateKeyPassword = privateKeyPassword;
+         config.tlsVersionMinOverride = tlsVersionMinOverride;
+         config.tlsCertProfileOverride = tlsCertProfileOverride;
+         config.disableClientCert = disableClientCert;
+         config.proxyHost = proxyHost;
+         config.proxyPort = proxyPort;
+         config.proxyUsername = proxyUsername;
+@@ -897,18 +901,19 @@
+ 
+     return ret;
+ }
+ 
+ void usage()
+ {
+     std::cout << "usage: hummingbird [options] <config-file>" << std::endl;
+     std::cout << "--help, -h            : show this help page" << std::endl;
+     std::cout << "--version, -v         : show version info" << std::endl;
++    std::cout << "--verbose, -V         : print all executed commands, even if successful" << std::endl;
+     std::cout << "--eval, -e            : evaluate profile only (standalone)" << std::endl;
+     std::cout << "--username, -u        : username" << std::endl;
+     std::cout << "--password, -p        : password" << std::endl;
+     std::cout << "--response, -r        : static response" << std::endl;
+     std::cout << "--dc, -D              : dynamic challenge/response cookie" << std::endl;
+     std::cout << "--cipher, -C          : encrypt packets with specific cipher algorithm (alg)" << std::endl;
+     std::cout << "--proto, -P           : protocol override (udp|tcp)" << std::endl;
+     std::cout << "--server, -s          : server override" << std::endl;
+     std::cout << "--port, -R            : port override" << std::endl;
+@@ -916,19 +921,19 @@
+     std::cout << "--ncp-disable, -n     : disable negotiable crypto parameters" << std::endl;
+     std::cout << "--network-lock, -N    : network filter and lock mode (on|iptables|nftables|pf|off, default on)" << std::endl;
+     std::cout << "--gui-version, -E     : set custom gui version (text)" << std::endl;
+     std::cout << "--ignore-dns-push, -i : ignore DNS push request and use system DNS settings" << std::endl;
+ 
+ #ifdef OPENVPN_REMOTE_OVERRIDE
+     std::cout << "--remote-override     : command to run to generate next remote (returning host,ip,port,proto)" << std::endl;
+ #endif
+ 
+-    std::cout << "--ipv6, -6            : combined IPv4/IPv6 tunnel (yes|no|default)" << std::endl;
++    std::cout << "--combined, -o        : combined IPv4/IPv6 tunnel (yes|no|default)" << std::endl;
+     std::cout << "--timeout, -t         : timeout" << std::endl;
+     std::cout << "--compress, -c        : compression mode (yes|no|asym)" << std::endl;
+     std::cout << "--pk-password, -z     : private key password" << std::endl;
+     std::cout << "--tvm-override, -M    : tls-version-min override (disabled, default, tls_1_x)" << std::endl;
+     std::cout << "--tcprof-override, -X : tls-cert-profile override (" <<
+ 
+ #ifdef OPENVPN_USE_TLS_MD5
+         "insecure, " <<
+ #endif
+@@ -979,19 +984,19 @@
+ 
+     if(optionParser == nullptr)
+         return false;
+ 
+     result = optionParser->addConfigOption("u", "username", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("p", "password", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("r", "response", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("D", "dc", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("P", "proto", OptionParser::Type::STRING);
+-    result &= optionParser->addConfigOption("6", "ipv6", OptionParser::Type::STRING);
++    result &= optionParser->addConfigOption("o", "combined", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("s", "server", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("R", "port", OptionParser::Type::INTEGER);
+     result &= optionParser->addConfigOption("C", "cipher", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("l", "tcp-queue-limit", OptionParser::Type::INTEGER);
+     result &= optionParser->addConfigOption("n", "ncp-disable", OptionParser::Type::OPTION);
+     result &= optionParser->addConfigOption("i", "ignore-dns-push", OptionParser::Type::OPTION);
+     result &= optionParser->addConfigOption("N", "network-lock", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("E", "gui-version", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("t", "timeout", OptionParser::Type::INTEGER);
+@@ -1000,18 +1005,19 @@
+     result &= optionParser->addConfigOption("M", "tvm-override", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("y", "proxy-host", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("q", "proxy-port", OptionParser::Type::INTEGER);
+     result &= optionParser->addConfigOption("U", "proxy-username", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("W", "proxy-password", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("I", "peer-info", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("G", "gremlin", OptionParser::Type::STRING);
+     result &= optionParser->addConfigOption("b", "proxy-basic", OptionParser::Type::OPTION);
+     result &= optionParser->addConfigOption("A", "alt-proxy", OptionParser::Type::OPTION);
++    result &= optionParser->addConfigOption("V", "verbose", OptionParser::Type::OPTION);
+ 
+ #ifdef ENABLE_DCO
+ 
+     result &= optionParser->addConfigOption("d", "dco", OptionParser::Type::OPTION);
+ 
+ #endif
+ 
+     result &= optionParser->addConfigOption("e", "eval", OptionParser::Type::OPTION);
+     result &= optionParser->addConfigOption("H", "cache-password", OptionParser::Type::OPTION);
+diff -ur9bBZ a/src/include/dnsmanager.hpp b/src/include/dnsmanager.hpp
+--- a/src/include/dnsmanager.hpp	2022-02-01 17:24:14.546763231 +0100
++++ b/src/include/dnsmanager.hpp	2022-02-01 08:02:52.856435100 +0100
+@@ -46,20 +46,23 @@
+     AirVPNTools::InitSystemType initSystemType = AirVPNTools::InitSystemType::Unknown;
+ 
+     public:
+ 
+     enum Error
+     {
+        OK,
+        RESOLV_DOT_CONF_OPEN_ERROR,
+        RESOLV_DOT_CONF_RENAME_ERROR,
++	   RESOLV_DOT_CONF_READ_ERROR,
+        RESOLV_DOT_CONF_WRITE_ERROR,
+        RESOLV_DOT_CONF_RESTORE_NOT_FOUND,
++	   RESOLV_DOT_CONF_BKUP_READ_ERROR,
++	   RESOLV_DOT_CONF_BKUP_DELETE_ERROR,
+        RESOLV_DOT_CONF_RESTORE_ERROR,
+        RESOLVED_IS_NOT_AVAILABLE,
+        RESOLVED_ADD_DNS_ERROR,
+        RESOLVED_REVERT_DNS_ERROR,
+        RESOLVED_RESTORE_ERROR,
+        NO_RESOLVED_COMMAND
+     };
+ 
+     DNSManager(std::string resolvBackupFile = "");
+diff -ur9bBZ a/src/include/execproc.h b/src/include/execproc.h
+--- a/src/include/execproc.h	2022-02-01 17:24:14.546763231 +0100
++++ b/src/include/execproc.h	2022-02-01 08:02:52.872435050 +0100
+@@ -30,11 +30,12 @@
+ #define EXEC_CMD_NOT_EXECUTABLE -12
+ #define EXEC_PIPE_ERROR         -13
+ #define EXEC_FORK_ERROR         -14
+ #define EXEC_EXIT_ERROR         -15
+ #define EXEC_TOO_MANY_ARGS      -16
+ 
+ int execute_process(char *input, char *output, const char *cmd, const char *arg, ...);
+ int execute_process_args(char *input, char *output, const char *cmd, char **exec_args);
+ void get_exec_path(const char *fname, char *path);
++void set_report_all_commands();
+ 
+ #endif
+diff -ur9bBZ a/src/include/hummingbird.hpp b/src/include/hummingbird.hpp
+--- a/src/include/hummingbird.hpp	2022-02-01 17:24:14.546763231 +0100
++++ b/src/include/hummingbird.hpp	2022-02-01 08:02:52.840435150 +0100
+@@ -20,20 +20,20 @@
+  * along with Hummingbird. If not, see <http://www.gnu.org/licenses/>.
+  *
+  */
+ 
+ #ifndef HUMMINGBIRD_HPP
+ #define HUMMINGBIRD_HPP
+ 
+ #define HUMMINGBIRD_NAME            "Hummingbird - AirVPN OpenVPN 3 Client"
+ #define HUMMINGBIRD_SHORT_NAME      "Hummingbird"
+-#define HUMMINGBIRD_VERSION         "1.1.2"
+-#define HUMMINGBIRD_RELEASE_DATE    "4 June 2021"
++#define HUMMINGBIRD_VERSION         "1.1.3"
++#define HUMMINGBIRD_RELEASE_DATE    "1 December 2021"
+ #define HUMMINGBIRD_FULL_NAME       HUMMINGBIRD_NAME " " HUMMINGBIRD_VERSION
+ #define RESOURCE_DIRECTORY          "/etc/airvpn"
+ #define HUMMINGBIRD_LOCK_FILE       RESOURCE_DIRECTORY "/hummingbird.lock"
+ #define RESOLVDOTCONF_BACKUP        RESOURCE_DIRECTORY "/resolv.conf.airvpnbackup"
+ #define SYSTEM_DNS_BACKUP_FILE      RESOURCE_DIRECTORY "/systemdns.airvpnbackup"
+ 
+ #define TCP_QUEUE_LIMIT_DEFAULT     8192
+ 
+ #endif
+Only in a/src/include: loadmod.h
+diff -ur9bBZ a/src/include/netfilter.hpp b/src/include/netfilter.hpp
+--- a/src/include/netfilter.hpp	2022-02-01 17:24:14.546763231 +0100
++++ b/src/include/netfilter.hpp	2022-02-01 08:02:52.904434950 +0100
+@@ -27,19 +27,18 @@
+ #include <string>
+ #include <sstream>
+ #include <vector>
+ #include "airvpntools.hpp"
+ #include "localnetwork.hpp"
+ 
+ #if defined(__linux__) && !defined(__ANDROID__)
+ 
+ #include <iostream>
+-#include "loadmod.h"
+ 
+ #endif
+ 
+ extern void global_log(std::string s);
+ 
+ class NetFilter
+ {
+     public:
+ 
+@@ -109,18 +108,19 @@
+     bool isIp6tableNatAvailable();
+     bool isIp6tableMangleAvailable();
+     bool isIp6tableSecurityAvailable();
+     bool isIp6tableRawAvailable();
+ 
+     private:
+ 
+     const char *systemctlBinary = "systemctl";
+     const char *shellBinary = "sh";
++    const char *loadModuleBinary = "modprobe";
+ 
+     bool checkService(std::string name);
+     bool readFile(std::string fname, char *buffer, int size);
+ 
+     // iptables
+ 
+     const char *iptablesBinary = NULL;
+     const char *iptablesSaveBinary = NULL;
+     const char *iptablesRestoreBinary = NULL;
+diff -ur9bBZ a/src/include/vpnclient.hpp b/src/include/vpnclient.hpp
+--- a/src/include/vpnclient.hpp	2022-02-01 17:24:14.546763231 +0100
++++ b/src/include/vpnclient.hpp	2022-02-01 08:02:52.824435200 +0100
+@@ -39,19 +39,18 @@
+ #include <resolv.h>
+ #include <arpa/inet.h>
+ #include <openvpn/common/platform.hpp>
+ 
+ #define USE_TUN_BUILDER
+ 
+ #if defined(OPENVPN_PLATFORM_LINUX)
+ 
+     #include "dnsmanager.hpp"
+-    #include "loadmod.h"
+ 
+ #endif
+ 
+ #ifdef OPENVPN_PLATFORM_MAC
+ 
+     #include <CoreFoundation/CFBundle.h>
+     #include <ApplicationServices/ApplicationServices.h>
+     #include <SystemConfiguration/SystemConfiguration.h>
+ 
+@@ -514,18 +513,22 @@
+             else
+                 os << "IPv4";
+ 
+             os << " DNS server " << address << " in resolv.conf";
+         }
+         else if(retval == DNSManager::Error::RESOLV_DOT_CONF_OPEN_ERROR)
+         {
+             os << "ERROR: Cannot open resolv.conf";
+         }
++        else if(retval == DNSManager::Error::RESOLV_DOT_CONF_READ_ERROR)
++        {
++            os << "ERROR: Cannot read resolv.conf";
++        }
+         else if(retval == DNSManager::Error::RESOLV_DOT_CONF_RENAME_ERROR)
+         {
+             os << "ERROR: Cannot create a backup copy of resolv.conf";
+         }
+         else if(retval == DNSManager::Error::RESOLV_DOT_CONF_WRITE_ERROR)
+         {
+             os << "ERROR: Cannot write in resolv.conf";
+         }
+         else
+@@ -912,43 +915,75 @@
+             }
+         }
+     }
+ 
+ #endif
+ 
+     if(status != Status::RECONNECTING)
+     {
+         // save system DNS
+-
+-        res_ninit(&_res);
+-
+         dnsTable.clear();
+         systemDnsTable.clear();
+ 
+         systemDNSDumpFile.open(dnsBackupFile);
+ 
++#ifdef ON_ALPINE_LINUX
++        res_init(); // initialize DNS name resolution in musl-libc
++                    // but this does NOT provide name server addresses in _res.nsaddr_list!!!
++                    // therefore we need to read the file /etc/resolv.conf directly ourselves.
++        FILE *resolv_conf_file = fopen("/etc/resolv.conf", "r");
++        if (resolv_conf_file)
++        {
++            char line[256], *addr;
++            int i;
++            while (fgets(line, sizeof(line), resolv_conf_file))
++            {
++                if (strlen(line)<12 || strncmp(line, "nameserver", 10) || !isspace(line[10]))
++                    continue;
++                ipEntry.ipv6 = false;
++                for (addr = &line[11]; addr[0] && isspace(addr[0]); addr++);
++                for (i = 0; addr[i] && !isspace(addr[i]); i++)
++                    ipEntry.ipv6 |= (addr[i]==':');
++                addr[i] = '\0';
++                if (i<3 || ( i<7 && !ipEntry.ipv6 ))
++                {
++                    os.str("");
++                    os << "Invalid nameserver specification ignored: " << line << std::endl;
++                    OPENVPN_LOG(os.str());
++                    continue;
++                }
++                ipEntry.address = addr;
++
++                systemDnsTable.push_back(ipEntry);
++
++                systemDNSDumpFile << ipEntry.address << std::endl;
++            }
++            fclose(resolv_conf_file);
++        }
++#else
++        res_ninit(&_res);
+         for(int i=0; i < MAXNS; i++)
+         {
+             if(_res.nsaddr_list[i].sin_addr.s_addr > 0)
+             {
+                 ipEntry.address = inet_ntoa(_res.nsaddr_list[i].sin_addr);
+ 
+                 if(_res.nsaddr_list[i].sin_family == AF_INET)
+                     ipEntry.ipv6 = false;
+                 else
+                     ipEntry.ipv6 = true;
+ 
+                 systemDnsTable.push_back(ipEntry);
+ 
+                 systemDNSDumpFile << ipEntry.address << std::endl;
+             }
+         }
+-
++#endif
+         systemDNSDumpFile.close();
+     }
+ 
+     if(netFilter != nullptr && netFilter->isNetworkLockAvailable())
+     {
+         if(status != Status::RECONNECTING)
+         {
+             for(IPEntry ip : localIPaddress)
+             {
+@@ -1378,18 +1413,30 @@
+ 
+             success = true;
+         }
+         else if(retval == DNSManager::Error::RESOLV_DOT_CONF_RESTORE_ERROR)
+         {
+             os << "ERROR: Cannot restore DNS settings.";
+ 
+             success = false;
+         }
++        else if(retval == DNSManager::Error::RESOLV_DOT_CONF_BKUP_READ_ERROR)
++        {
++            os << "ERROR: Cannot read resolv.conf backup file.";
++
++            success = false;
++        }
++        else if(retval == DNSManager::Error::RESOLV_DOT_CONF_BKUP_DELETE_ERROR)
++        {
++            os << "ERROR: Cannot delete resolv.conf backup file.";
++
++            success = false;
++        }
+         else
+         {
+             os << "ERROR: Cannot restore DNS settings. Unknown error.";
+ 
+             success = false;
+         }
+ 
+         os << std::endl;
+ 
+Only in a/src: loadmod.c
+diff -ur9bBZ a/src/localnetwork.cpp b/src/localnetwork.cpp
+--- a/src/localnetwork.cpp	2022-02-01 17:24:14.550763216 +0100
++++ b/src/localnetwork.cpp	2022-02-01 08:02:52.764435387 +0100
+@@ -30,18 +30,22 @@
+ #include <linux/netlink.h>
+ #include <linux/rtnetlink.h>
+ 
+ #endif
+ 
+ #include <ifaddrs.h>
+ #include <unistd.h>
+ #include <cstring>
+ 
++#if defined(ON_ALPINE_LINUX)
++#include <sys/time.h>
++#endif
++
+ #include "include/localnetwork.hpp"
+ 
+ bool operator==(const LocalNetwork::IPEntry& lval, const LocalNetwork::IPEntry& rval)
+ {
+     return lval.address == rval.address && lval.ipv6 == rval.ipv6;
+ }
+ 
+ bool operator!=(const LocalNetwork::IPEntry& lval, const LocalNetwork::IPEntry& rval)
+ {
+diff -ur9bBZ a/src/netfilter.cpp b/src/netfilter.cpp
+--- a/src/netfilter.cpp	2022-02-01 17:24:14.550763216 +0100
++++ b/src/netfilter.cpp	2022-02-01 08:02:53.032434550 +0100
+@@ -1536,50 +1536,55 @@
+     }
+     else
+         retval = false;
+ 
+     return retval;
+ }
+ 
+ void NetFilter::iptablesSetup(std::string loopbackIface)
+ {
++    global_log("Running iptables setup...");
++
+     // IPv4
+ 
+     iptablesResetRules(IP::v4);
+ 
+     if(iptableMangleAvailable == true)
+     {
+         iptablesAddRule(IP::v4, "*mangle");
+         iptablesAddRule(IP::v4, ":PREROUTING ACCEPT [0:0]");
+         iptablesAddRule(IP::v4, ":INPUT ACCEPT [0:0]");
+         iptablesAddRule(IP::v4, ":FORWARD ACCEPT [0:0]");
+         iptablesAddRule(IP::v4, ":OUTPUT ACCEPT [0:0]");
+         iptablesAddRule(IP::v4, ":POSTROUTING ACCEPT [0:0]");
+         iptablesAddRule(IP::v4, "COMMIT");
+     }
++    else
++        global_log("iptablesSetup: iptables MANGLE not available.");
+ 
+     if(iptableNatAvailable == true)
+     {
+         iptablesAddRule(IP::v4, "*nat");
+         iptablesAddRule(IP::v4, ":PREROUTING ACCEPT [0:0]");
+         iptablesAddRule(IP::v4, ":INPUT ACCEPT [0:0]");
+         iptablesAddRule(IP::v4, ":OUTPUT ACCEPT [0:0]");
+         iptablesAddRule(IP::v4, ":POSTROUTING ACCEPT [0:0]");
+         iptablesAddRule(IP::v4, "COMMIT");
+     }
++    else
++        global_log("iptablesSetup: iptables NAT not available.");
+ 
+     if(iptableFilterAvailable == true)
+     {
+         iptablesAddRule(IP::v4, "*filter");
+         iptablesAddRule(IP::v4, ":INPUT DROP [0:0]");
+         iptablesAddRule(IP::v4, ":FORWARD DROP [0:0]");
+         iptablesAddRule(IP::v4, ":OUTPUT DROP [0:0]");
+-    }
+ 
+     // Local input
+ 
+     iptablesAddRule(IP::v4, "-A INPUT -i " + loopbackIface + " -j ACCEPT");
+ 
+     // Accept DHCP
+ 
+     iptablesAddRule(IP::v4, "-A INPUT -s 255.255.255.255/32 -j ACCEPT");
+ 
+@@ -1650,43 +1655,50 @@
+     iptablesAddRule(IP::v4, "-A OUTPUT -p icmp -m icmp --icmp-type 0 -j ACCEPT");
+ 
+     // Allow all TUN interfaces
+ 
+     iptablesAddRule(IP::v4, "-A OUTPUT -o tun+ -j ACCEPT");
+ 
+     // Allow established sessions
+ 
+     iptablesAddRule(IP::v4, "-A OUTPUT -m state --state ESTABLISHED -j ACCEPT");
++    }
++    else
++        global_log("iptablesSetup: iptables FILTER not available.");
+ 
+     // IPv6
+ 
+     iptablesResetRules(IP::v6);
+ 
+     if(ip6tableMangleAvailable == true)
+     {
+         iptablesAddRule(IP::v6, "*mangle");
+         iptablesAddRule(IP::v6, ":PREROUTING ACCEPT [0:0]");
+         iptablesAddRule(IP::v6, ":INPUT ACCEPT [0:0]");
+         iptablesAddRule(IP::v6, ":FORWARD ACCEPT [0:0]");
+         iptablesAddRule(IP::v6, ":OUTPUT ACCEPT [0:0]");
+         iptablesAddRule(IP::v6, ":POSTROUTING ACCEPT [0:0]");
+         iptablesAddRule(IP::v6, "COMMIT");
+     }
++    else
++        global_log("iptablesSetup: ip6tables MANGLE not available.");
+ 
+     if(ip6tableNatAvailable == true)
+     {
+         iptablesAddRule(IP::v6, "*nat");
+         iptablesAddRule(IP::v6, ":PREROUTING ACCEPT [0:0]");
+         iptablesAddRule(IP::v6, ":INPUT ACCEPT [0:0]");
+         iptablesAddRule(IP::v6, ":OUTPUT ACCEPT [0:0]");
+         iptablesAddRule(IP::v6, ":POSTROUTING ACCEPT [0:0]");
+         iptablesAddRule(IP::v6, "COMMIT");
+     }
++    else
++        global_log("iptablesSetup: ip6tables NAT not available.");
+ 
+     if(ip6tableFilterAvailable == true)
+     {
+         iptablesAddRule(IP::v6, "*filter");
+         iptablesAddRule(IP::v6, ":INPUT DROP [0:0]");
+         iptablesAddRule(IP::v6, ":FORWARD DROP [0:0]");
+         iptablesAddRule(IP::v6, ":OUTPUT DROP [0:0]");
+ 
+         // Accept local network
+@@ -1775,18 +1787,20 @@
+ 
+         // Allow TUN
+ 
+         iptablesAddRule(IP::v6, "-A OUTPUT -o tun+ -j ACCEPT");
+ 
+         // Allow established sessions
+ 
+         iptablesAddRule(IP::v6, "-A OUTPUT -m state --state ESTABLISHED -j ACCEPT");
+     }
++    else
++        global_log("iptablesSetup: ip6tables FILTER not available.");
+ }
+ 
+ // nftables
+ 
+ void NetFilter::nftablesResetRules()
+ {
+     nftablesRules = "";
+ }
+ 
+@@ -2048,18 +2062,20 @@
+     }
+     else
+         retval = false;
+ 
+     return retval;
+ }
+ 
+ void NetFilter::nftablesSetup(std::string loopbackIface)
+ {
++    global_log("Running nftables setup...");
++
+     nftablesResetRules();
+ 
+     // IPv4
+ 
+     nftablesAddRule("add table ip mangle");
+     nftablesAddRule("add chain ip mangle PREROUTING { type filter hook prerouting priority -150; policy accept; }");
+     nftablesAddRule("add chain ip mangle INPUT { type filter hook input priority -150; policy accept; }");
+     nftablesAddRule("add chain ip mangle FORWARD { type filter hook forward priority -150; policy accept; }");
+     nftablesAddRule("add chain ip mangle OUTPUT { type route hook output priority -150; policy accept; }");
+@@ -2536,18 +2552,19 @@
+     }
+     else
+         retval = false;
+ 
+     return retval;
+ }
+ 
+ void NetFilter::pfSetup(std::string loopbackIface)
+ {
++    global_log("Running pf setup...");
+     pfResetRules();
+ 
+     pfAddRule("set block-policy drop");
+     pfAddRule("set ruleset-optimization basic");
+ 
+     pfAddRule("set skip on { " + loopbackIface + " }");
+ 
+     pfAddRule("scrub in all");
+ 
+@@ -2624,62 +2641,68 @@
+     pfCommit();
+ 
+     return true;
+ }
+ 
+ #if defined(__linux__) && !defined(__ANDROID__)
+ 
+ bool NetFilter::loadLinuxModule(std::string module_name, std::string module_params)
+ {
+-    return loadLinuxModule(module_name.c_str(), module_params.c_str());
++    return NetFilter::loadLinuxModule(module_name.c_str(), module_params.c_str());
+ }
+ 
+ bool NetFilter::loadLinuxModule(const char *module_name, const char *module_params)
+ {
+     std::ostringstream os;
+-    int retval;
+     bool result = false;
+-
+-    retval = load_kernel_module(module_name, module_params);
++    char *exec_args[EXEC_MAX_ARGS];
++    int n;
+ 
+     os.str("");
+ 
+-    switch(retval)
+-    {
+-        case MODULE_LOAD_SUCCESS:
+-        {
+-            os << "Successfully loaded kernel module " << module_name;
++    strcpy(binpath, "");
+ 
+-            result = true;
+-        }
+-        break;
++    get_exec_path(loadModuleBinary, binpath);
+ 
+-        case MODULE_ALREADY_LOADED:
++    if(strcmp(binpath, "") != 0)
+         {
+             result = true;
+-        }
+-        break;
+ 
+-        case MODULE_NOT_FOUND:
++        std::istringstream buf(module_params);
++        std::istream_iterator<std::string> beg(buf), end;
++
++        std::vector<std::string> tokens(beg, end);
++
++        n = 0;
++
++        exec_args[n++] = binpath;
++        exec_args[n++] = (char *)module_name;
++
++        for(auto& s: tokens)
+         {
+-            os << "WARNING: Kernel module " << module_name << " not found. (" << retval << ")";
++            exec_args[n++] = (char *)s.c_str();
+ 
+-            result = false;
++            if(n == EXEC_MAX_ARGS)
++                return false;
+         }
+-        break;
+ 
+-        default:
+-        {
+-            os << "ERROR: Error while loading kernel module " << module_name << " (" << retval << ")";
++        exec_args[n++] = NULL;
+ 
++        int retval = execute_process_args(NULL, NULL, binpath, exec_args);
++        if (retval != 0)
++        {
++            os << "Loading kernel module " << module_name << " failed with return code " << retval;
+             result = false;
+         }
+-        break;
++        else
++            os << "Successfully loaded kernel module " << module_name;
+     }
++    else
++        result = false;
+ 
+     if(os.str() != "")
+         global_log(os.str());
+ 
+     return result;
+ }
+ 
+ #endif

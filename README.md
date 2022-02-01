@@ -78,20 +78,19 @@ from the root-directory of this repository. It will result in a new image
 
 To start the container based on the airvpn-hummingbird image use the following command:
 
->`docker run -ti --cap-add=NET_ADMIN --cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro --device /dev/net:/dev/net -v <config.ovpn>:/config.ovpn:ro airvpn-hummingbird <hummingbird-command-options>`
+>`docker run -ti --cap-add=NET_ADMIN --cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro --device /dev/net:/dev/net -v <config.ovpn>:/config.ovpn:ro airvpn-hummingbird <hummingbird-command-options> /config.ovpn`
 
 where `<config.ovpn>` is the absolute path to a valid AirVPN configuration file as can be downloaded from the
 website's config generator and `<hummingbird-command-options>` should be replaced with any necessary command
 options for the hummingbird client - as explained below - to do, what you want it to do.
 
-But be aware, that any `<config-file>` you specify in `<hummingbird-command-options>` must point to a file
-**inside the container** and should either be the `/config.ovpn` from the above -v option to the docker run
-command or an absolute path to a file you added to the docker image yourself during the build or via docker copy.
-If nothing is specified for `<config-file>` in `<hummingbird-command-options>` it will default to `/config.ovpn`.
+But be aware, that the `<hummingbird-command-options>` should not include the positional parameter `<config.file>`
+but only options, since the hummingbird client inside the container is started with `/config.ovpn` as it's config
+file - the file mounted with the above -v option to the docker run command.
 
-The part **--cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro** of the command is necessary to allow the container to actually
+The part `--cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro` of the command is necessary to allow the container to actually
 load the firewall modules you choose via the `--network-lock` option. If you make sure, the modules are loaded on the Docker host
-before you start the container, those are won't be necessary. Therefore it is best, if you choose the network lock type you are
+before you start the container, those won't be necessary. Therefore it is best, if you choose the network lock type you are
 already using on the host anyway and can thus avoid giving the container unnecessary capabilities. Using `--network-lock on` will
 require those parameters to be specified, since the hummingbird client will then probe for the modules to figure out for
 itself, which firewall modules to use.

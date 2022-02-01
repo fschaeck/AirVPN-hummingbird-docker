@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  AirVPN-hummingbird:
+    image: AirVPN-hummingbird
+    container_name: AirVPN-hummingbird
+    cap_add:
+      - net_admin
+      - sys_module
+    environment:
+      TZ: 'America/Chicago'
+    restart: unless-stopped
+    volumes:
+      - /lib/modules:/lib/modules:ro
+      - /dev/net:/dev/net
+      - ./config.ovpn:/config.ovpn
