@@ -1,4 +1,10 @@
+# AirVPN Hummingbird Client for Docker
+
 #### AirVPN's free and open source OpenVPN 3 client based on AirVPN's OpenVPN 3 library fork - now running in a Docker container
+
+### Based on Version 1.1.2 - Release date 4 June 2021
+
+## Prolog
 
 To make AirVPN's client hummingbird run in a Docker image - and especially
 in an Alpine-Linux image - required a few patches to the client as it is
@@ -9,10 +15,14 @@ I created this github repo, modified my Dockerfiles accordingly and now have an 
 Dockerfile downloading the required sources from their current repository at
 https://gitlab.com/AirVPN/hummingbird/-/archive/master/hummingbird-master.tar.bz2
 
-The following is the relevant part of the hummingbird gitlab repository README.md
-plus whatever is needed to get this Docker container built and running.
+Please open an Issue against this repository, if any problems arise building the image, since
+there are no releases in the gitlab repository and this Dockerfile is downloading whatever is
+currently in the master branch. Thus the patches may not work anymore if the client code
+changes in afore mentioned master branch.
 
-### Version 1.1.2 - Release date 4 June 2021
+The following is the relevant part of the hummingbird gitlab repository README.md
+plus whatever is needed to get this Docker image built and the container running.
+
 **Main features:**
 
 * Lightweight and stand alone binary
@@ -30,7 +40,7 @@ plus whatever is needed to get this Docker container built and running.
   or pf through automatic detection
 * proper handling of DNS push by VPN servers, working with resolv.conf as well as
   any operational mode of systemd-resolved additional features
-
+* now also runnable in a Docker container
 
 ## Contents
 
@@ -57,33 +67,40 @@ plus whatever is needed to get this Docker container built and running.
 
 Execute the Docker build command:
 
->`docker build -t hummingbird -f Dockerfile.debian .`
+>`docker build -t airvpn-hummingbird -f Dockerfile.debian .`
 or
->`docker build -t hummingbird -f Dockerfile.alpine .`
+>`docker build -t airvpn-hummingbird -f Dockerfile.alpine .`
 
-from the root-directory of this repository. It will result in a new image *hummingbird* in your Docker environment.
+from the root-directory of this repository. It will result in a new image
+**`airvpn-hummingbird`** in your Docker environment.
 
-# Run the Hummingbird Docker Image
+# Run the airvpn-ummingbird Docker Image
 
-To start the container based on the hummingbird image use the following command:
+To start the container based on the airvpn-hummingbird image use the following command:
 
->`docker run -ti --cap-add=NET_ADMIN --cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro --device /dev/net:/dev/net -e "NETWORK_LOCK=<locktype>" -v <config.ovpn>:/config.ovpn:ro hummingbird`
+>`docker run -ti --cap-add=NET_ADMIN --cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro --device /dev/net:/dev/net -v <config.ovpn>:/config.ovpn:ro airvpn-hummingbird <hummingbird-command-options>`
 
-where `<locktype>` is one of "on", "iptables", "nftables", "pf" or "off" and
-`<config.ovpn>` is a valid AirVPN configuration file as can be downloaded from the
-website's config generator.
+where `<config.ovpn>` is the absolute path to a valid AirVPN configuration file as can be downloaded from the
+website's config generator and `<hummingbird-command-options>` should be replaced with any necessary command
+options for the hummingbird client - as explained below - to do, what you want it to do.
+
+But be aware, that any `<config-file>` you specify in `<hummingbird-command-options>` must point to a file
+**inside the container** and should either be the `/config.ovpn` from the above -v option to the docker run
+command or an absolute path to a file you added to the docker image yourself during the build or via docker copy.
+If nothing is specified for `<config-file>` in `<hummingbird-command-options>` it will default to `/config.ovpn`.
 
 The part **--cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro** of the command is necessary to allow the container to actually
-load the firewall modules you choose via the <locktype> parameter. If you actually make sure, the modules are loaded on the Docker host
-before you start the container, those are actually not necessary. Therefore it is best, if you choose the network lock type you are
-already using on the host anyway.
+load the firewall modules you choose via the `--network-lock` option. If you make sure, the modules are loaded on the Docker host
+before you start the container, those are won't be necessary. Therefore it is best, if you choose the network lock type you are
+already using on the host anyway and can thus avoid giving the container unnecessary capabilities. Using `--network-lock on` will
+require those parameters to be specified, since the hummingbird client will then probe for the modules to figure out for
+itself, which firewall modules to use.
 
-Adding `-e "EXTRA_ARGS=--verbose"` to the docker run command will produce listings to stderr of all
-commands with their input and output that get executed by the hummingbird client in the docker image.
+Adding `--verbose` to the docker run command's `<hummingbird-command-options>` will produce listings to stderr of all
+commands with their input and output that get executed by the hummingbird client in the docker image. A good way to figure
+out, what exactly is being done for setting up the network lock.
   
-You can also pass in any of the other arguments the hummingbird client understands. See below.
-
-
+  
 # Running the Hummingbird Client
 
 Run `hummingbird` and display its help in order to become familiar with its
@@ -271,7 +288,14 @@ Please note in case of crash or unexpected exit, when you subsequently run
 hummingbird it will warn you about the unexpected exit and will require you to
 run it again with the `--recover-network` option. It will also refuse to start
 any connection until the network has been properly restored and recovered.
-
+  
+In the case of running hummingbird in a Docker container, you can just start the container
+with the option `--recover-network` to have everything reset. Or you ca. stop and delete
+the container and re-create a new one. But in that case, you'll have to stop, delete and re-create
+all containers using the hummingbird-container as their network-providing container, since
+that connection is established on the base of the container's UUID, which changes if you
+delete and re-create the hummingbird-container.
+  
 ***
 
 Hummingbird is an open source project by [AirVPN](https://airvpn.org)
