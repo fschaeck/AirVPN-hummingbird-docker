@@ -63,7 +63,7 @@ plus whatever is needed to get this Docker image built and the container running
 
 ## Building and Running Hummingbird as Docker Container
 
-# Build the Docker Image
+### Build the Docker Image
 
 Execute the Docker build command:
 
@@ -74,7 +74,7 @@ or
 from the root-directory of this repository. It will result in a new image
 **`airvpn-hummingbird`** in your Docker environment.
 
-# Run the airvpn-ummingbird Docker Image
+### Run the airvpn-hummingbird Docker Image
 
 To start the container based on the airvpn-hummingbird image use the following command:
 
@@ -101,7 +101,7 @@ commands with their input and output that get executed by the hummingbird client
 out, what exactly is being done for setting up the network lock.
   
   
-# Running the Hummingbird Client
+## Running the Hummingbird Client
 
 Run `hummingbird` and display its help in order to become familiar with its
 options. From your terminal window issue this command:
