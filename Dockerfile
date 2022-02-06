@@ -1,11 +1,11 @@
-FROM alpine AS hummingbird-build
+FROM alpine AS airvpn-hummingbird-build
 WORKDIR /build/hummingbird
 RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >>/etc/apk/repositories
 RUN apk add --no-cache build-base wget git lz4-dev mbedtls-dev \
                        mlocate bash asio-dev curl-dev libxml2-dev \
                        lzo-dev xz-dev crypto++-dev && \
     cd /build && \
-    git clone https://github.com/AirVPN/openvpn3-airvpn.git && \
+    git clone https://github.com/fschaeck/openvpn3-airvpn.git && \
     git clone https://gitlab.com/fschaeckermann/hummingbird.git
 
     #    -O0 -ggdb -g3 \\
@@ -73,7 +73,7 @@ RUN set -eux; \
 
 # RUN apk add --no-cache gdbserver iputils-ping traceroute telnet iproute2 vim && \
 
-COPY --from=hummingbird-build /build/hummingbird/hummingbird /usr/bin/hummingbird
+COPY --from=airvpn-hummingbird-build /build/hummingbird/hummingbird /usr/bin/hummingbird
 COPY entrypoint.sh healthcheck.sh /
 
 HEALTHCHECK --interval=5s --timeout=1s --start-period=5s \
