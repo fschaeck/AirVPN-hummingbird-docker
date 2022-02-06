@@ -6,13 +6,10 @@ RUN apk add --no-cache build-base wget git lz4-dev mbedtls-dev \
                        lzo-dev xz-dev crypto++-dev && \
     cd /build && \
     git clone https://github.com/AirVPN/openvpn3-airvpn.git && \
-    git clone https://gitlab.com/AirVPN/hummingbird.git
-
-COPY hummingbird.patch /build/hummingbird/
+    git clone https://gitlab.com/fschaeckermann/hummingbird.git
 
     #    -O0 -ggdb -g3 \\
 RUN cd /build/hummingbird && \
-    patch -p 1 <./hummingbird.patch && \
     export PATH && \
     g++ -fwhole-program \
         -Ofast \

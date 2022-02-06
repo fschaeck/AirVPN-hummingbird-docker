@@ -2,7 +2,8 @@
 
 #### AirVPN's free and open source OpenVPN 3 client based on AirVPN's OpenVPN 3 library fork - now running in a Docker container
 
-### Based on Version 1.1.2 - Release date 4 June 2021
+### Version 1.1.4 - Release date 6th February 2022
+#### based on official Version 1.1.2 - Release date 4 June 2021 - and patched to run in a docker container
 
 ## Prolog
 
@@ -19,9 +20,6 @@ Please open an Issue against this repository, if any problems arise building the
 there are no releases in the gitlab repository and this Dockerfile is downloading whatever is
 currently in the master branch. Thus the patches may not work anymore if the client code
 changes in afore mentioned master branch.
-
-The following is the relevant part of the hummingbird gitlab repository README.md
-plus whatever is needed to get this Docker image built and the container running.
 
 **Main features:**
 
@@ -40,14 +38,14 @@ plus whatever is needed to get this Docker image built and the container running
   or pf through automatic detection
 * proper handling of DNS push by VPN servers, working with resolv.conf as well as
   any operational mode of systemd-resolved additional features
-* now also runnable in a Docker container
+* and all of this in an easy to handle Docker container
 
 ## Contents
 
 * [Building and Running Hummingbird as Docker Container](#building-and-running-hummingbird-as-docker-container)
   * [Build the Docker Image](#build-the-docker-image)
   * [Run the Hummingbird Docker Image](#run-the-hummingbird-docker-image)
-* [Running the Hummingbird Client](#running-the-hummingbird-client)
+* [Hummingbird Client Command Options](#hummingbird-client-command-options)
   * [Start a connection](#start-a-connection)
   * [Stop a connection](#stop-a-connection)
   * [Start a connection with a specific cipher](#start-a-connection-with-a-specific-cipher)
@@ -55,8 +53,7 @@ plus whatever is needed to get this Docker image built and the container running
   * [Ignore the DNS servers pushed by the VPN server](#ignore-the-dns-servers-pushed-by-the-vpn-server)
   * [Controlling Hummingbird](#controlling-hummingbird)
 * [Network Filter and Lock](#network-filter-and-lock)
-* [DNS Management in Linux](#dns-management-in-linux)
-* [DNS Management in macOS](#dns-management-in-macos)
+* [DNS Management in the Container](#dns-management-in-the-container)
 * [Recover Your Network Settings](#recover-your-network-settings)
 
 -------------------------------------------------------------------------------
@@ -78,38 +75,37 @@ from the root-directory of this repository. It will result in a new image
 
 To start the container based on the airvpn-hummingbird image use the following command:
 
->`docker run -ti --cap-add=NET_ADMIN --cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro --device /dev/net:/dev/net -v <config.ovpn>:/config.ovpn:ro airvpn-hummingbird <hummingbird-command-options> /config.ovpn`
+>`docker run -ti --cap-add=NET_ADMIN --sysctl net.ipv6.conf.all.disable_ipv6=0 --cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro --device /dev/net:/dev/net -v <config.ovpn>:/config.ovpn:ro airvpn-hummingbird <hummingbird-command-options>`
 
-where `<config.ovpn>` is the absolute path to a valid AirVPN configuration file as can be downloaded from the
-website's config generator and `<hummingbird-command-options>` should be replaced with any necessary command
-options for the hummingbird client - as explained below - to do, what you want it to do.
+In the above example, `<config.ovpn>` is the absolute path to a valid AirVPN configuration file as can be downloaded from the
+website's config generator and `<hummingbird-command-options>` should contain `/config.ovpn` as a reference to the configuration
+file inside the container. For other possible options that can be placed here, see below.
 
-But be aware, that the `<hummingbird-command-options>` should not include the positional parameter `<config.file>`
-but only options, since the hummingbird client inside the container is started with `/config.ovpn` as it's config
-file - the file mounted with the above -v option to the docker run command.
+Another example would be:
+
+>`docker run -ti --cap-add=NET_ADMIN --sysctl net.ipv6.conf.all.disable_ipv6=0 --cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro --device /dev/net:/dev/net -v <config-dir>:/config:ro airvpn-hummingbird <hummingbird-command-options>`
+
+Here the `<hummingbird-command-options>` should contain a reference to an existing file in `<config-dir>`i. The path to
+the config file in `<hummingbird-command-options>` must be specified as an absolute path **INSIDE** the container, i.e. "/config/Sweden/AirVPN_Sweden_UDP-1194.ovpn".
 
 The part `--cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro` of the command is necessary to allow the container to actually
-load the firewall modules you choose via the `--network-lock` option. If you make sure, the modules are loaded on the Docker host
-before you start the container, those won't be necessary. Therefore it is best, if you choose the network lock type you are
-already using on the host anyway and can thus avoid giving the container unnecessary capabilities. Using `--network-lock on` will
-require those parameters to be specified, since the hummingbird client will then probe for the modules to figure out for
-itself, which firewall modules to use.
+probe for and load the firewall modules you choose via the `--network-lock` option.
+It is best, if you choose the network lock type you are already using on the host anyway and can thus avoid having the container
+load the modules on startup. Also note, that you might need to change the image to contain the other firewall executables, since
+this Dockerfile only makes sure that the iptables packages are installed.
+
+`--sysctl net.ipv6.conf.all.disable_ipv6=0` is required to allow the hummingbird client to modify IPv6 routes. Otherwise IPv6 tunneling woh't work.
 
 Adding `--verbose` to the docker run command's `<hummingbird-command-options>` will produce listings to stderr of all
 commands with their input and output that get executed by the hummingbird client in the docker image. A good way to figure
-out, what exactly is being done for setting up the network lock.
+out, what exactly is being done for setting up the network lock, in case there are any problems with connectivity.
   
   
-## Running the Hummingbird Client
+## Hummingbird Client Command Options
 
-Run `hummingbird` and display its help in order to become familiar with its
-options. From your terminal window issue this command:
+If you run the container without any `<hummingbird-command-options>` it will display its help:
 
->`sudo ./hummingbird --help`
-
-After having entered your root account password, `hummingbird` responds with:
-
->`Hummingbird - AirVPN OpenVPN 3 Client 1.1.2 - 9 April 2021`  
+>`Hummingbird - AirVPN OpenVPN 3 Client 1.1.3 - 1 December 2021`  
 >  
 >`usage: hummingbird [options] <config-file>`  
 >`--help, -h            : show this help page`  
@@ -127,6 +123,7 @@ After having entered your root account password, `hummingbird` responds with:
 >`--tcp-queue-limit, -l : size of TCP packet queue (1-65535, default 8192)`  
 >`--ncp-disable, -n     : disable negotiable crypto parameters`  
 >`--network-lock, -N    : network filter and lock mode (on|iptables|nftables|pf|off, default on)`  
+>`--bypass-vpn, -B      : add routes and network filter expressions to bypass vpn for i.e. local servers (not working for IPv6 yet)`
 >`--gui-version, -E     : set custom gui version (text)`  
 >`--ignore-dns-push, -i : ignore DNS push request and use system DNS settings`  
 >`--combined, -o        : combined IPv4/IPv6 tunnel (yes|no|default)`  
@@ -162,6 +159,8 @@ After having entered your root account password, `hummingbird` responds with:
 >`Special thanks to the AirVPN community for the valuable help,`  
 >`support, suggestions and testing.`  
 
+*Note that --verbose and --bypass-vpn are additions coming with the docker-enabled hummingbird
+client and are not part of the official hummingbird client.*
 
 Hummingbird needs a valid OpenVPN profile in order to connect to a server. You
 can create an OpenVPN profile by using the config generator available at AirVPN
@@ -170,19 +169,22 @@ website in your account's [Client Area](https://airvpn.org/generator/)
 
 #### Start a connection
 
->`sudo ./hummingbird your_openvpn_file.ovpn`
+>`<hummingbird-command-options> = /config/your_openvpn_file.ovpn`
 
 
 #### Stop a connection
 
-Type `CTRL+C` in the terminal window where hummingbird is running. The client
-will initiate the disconnection process and will restore your original network
+Type `CTRL+C` in the terminal window where the airvpn-hummingbird container is running, if you kept
+STDIN open by supplying the -i to the docker run command.
+Otherwise issue a `docker stop airvpn-hummingbird` to stop the container.
+
+The client will initiate the disconnection process and will restore the containers original network
 settings according to your options.
 
 
 #### Start a connection with a specific cipher
 
->`sudo ./hummingbird --ncp-disable --cipher CHACHA20-POLY1305 your_openvpn_file.ovpn`
+>`<hummingbird-command-options> = --ncp-disable --cipher CHACHA20-POLY1305 /config/your_openvpn_file.ovpn`
 
 **Please note**: in order to properly work, the server you are connecting to
 must support the cipher specified with the `--cipher` option.
@@ -190,12 +192,12 @@ must support the cipher specified with the `--cipher` option.
 
 #### Disable the network filter and lock
 
->`sudo ./hummingbird --network-lock off your_openvpn_file.ovpn`
+>`<hummingbird-command-options> = --network-lock off /config/your_openvpn_file.ovpn`
 
 
 #### Ignore the DNS servers pushed by the VPN server
 
->`sudo ./hummingbird --ignore-dns-push your_openvpn_file.ovpn`
+>`<hummingbird-command-options> = --ignore-dns-push /config/your_openvpn_file.ovpn`
 
 
 **Please note**: the above options can be combined together according to their
@@ -205,7 +207,8 @@ use and function.
 #### Controlling Hummingbird
 
 Hummingbird uses the following system signals to control specific actions.
-You can send a signal to Hummingbird by using the `kill` command from a terminal.
+You can send a signal to Hummingbird by using command
+`docker exec -t airvpn-hummingbird killall --signal <SIGNAL> /usr/bin/hummingbird`.
 
 * **SIGTERM**, **SIGINT**, **SIGPIPE**, **SIGHUP** : Disconnect the active VPN
   connection
@@ -251,25 +254,15 @@ hummingbird's network filter and lock and you are strongly advised to not issue
 any firewall related command while the VPN connection is active.
 
 
-## DNS Management in Linux
+## DNS Management in the Container
 
-Hummingbird currently supports both `resolv.conf` and `systemd-resolved`
-service. It is also aware of Network Manager, in case it is running. While the
-client is running, you are strongly advised to not issue any resolved related
-command (such as `resolvectl`) or change the `resolv.conf` file in order to make
-sure the system properly uses DNS pushed by the VPN server. **Please note**: DNS
-system settings are not changed in case the client has been started with
-`--ignore-dns-push`. In this specific case, the connection will use your
-system's DNS.
+The Hummingbird client in this container uses the file `resolv.conf` directly.
+It creates a backup of the file and writes a new one with the DNS names coming
+down from the VPN server.
 
-Furthermore, please note that if your network interfaces are managed by Network
-Manager, DNS settings might be changed under peculiar circumstances during a VPN
-connection, even when DNS push had been previously accepted.
-
-
-## DNS Management in macOS
-
-DNS setting and management is done through OpenVPN 3 native support
+**Please note**: DNS system settings are not changed in case the container has
+been started with `--ignore-dns-push`. In this specific case, the connection will
+use your system's DNS as it is passed down into the container by docker.
 
 
 ## Recover Your Network Settings
@@ -278,22 +271,19 @@ In case hummingbird crashes or it is killed by the user (i.e. ``kill -9 `pidof h
 as well as in case of system reboot while the connection is active, the system
 may keep and use some or all of the netwrok settings determined by the client,
 therefore your network connection might not work as expected, every connection might
-be refused and the system might seem to be "network locked". . To restore and recover
-your system network, you can use the client with the `--recover-network` option.
+be refused and the system might seem to be "network locked". To avoid this problem in the
+docker container, the entrypoint.sh, that is started when the container starts, is issuing
+a `hummingbird --recover-network` before starting the client to establish a connection.
 
->`sudo ./hummingbird --recover-network`
+Thus no specific user action is needed when using hummingbird in this docker container.
 
-Please note in case of crash or unexpected exit, when you subsequently run
-hummingbird it will warn you about the unexpected exit and will require you to
-run it again with the `--recover-network` option. It will also refuse to start
-any connection until the network has been properly restored and recovered.
-  
-In the case of running hummingbird in a Docker container, you can just start the container
-with the option `--recover-network` to have everything reset. Or you ca. stop and delete
-the container and re-create a new one. But in that case, you'll have to stop, delete and re-create
-all containers using the hummingbird-container as their network-providing container, since
+In case of problems not fixed with this pre-caution, you may have to delete the container and re-create
+it with another docker run command.
+
+But in thsat case, you'll have to stop, delete and re-create
+all containers using the airvpn-hummingbird container as their network-providing container, since
 that connection is established on the base of the container's UUID, which changes if you
-delete and re-create the hummingbird-container.
+delete and re-create the airvpn-hummingbird container.
   
 ***
 
