@@ -1,10 +1,13 @@
 #!/bin/sh
 
 ##### First of all reset the network
-rm /etc/airvpn/hummingbird.lock &> /dev/null
 /usr/bin/hummingbird --recover-network &> /dev/null
 
-iptables-restore <<EOF-EOF-EOF
+network_lock=$(echo " $@" |grep -oE '\s(--network-lock(\s+|=)|-N\s+)\S+' |sed -nE '$s/^ *[^= ]+[= ]*//p')
+case "$network_lock" in
+    iptables)
+        # Resetting the containers iptables firewall
+        iptables_reset="#
 *raw
 :PREROUTING ACCEPT [0:0]
 :OUTPUT ACCEPT [0:0]
@@ -27,32 +30,29 @@ COMMIT
 :FORWARD ACCEPT [0:0]
 :OUTPUT ACCEPT [0:0]
 COMMIT
-EOF-EOF-EOF
+"
+        echo "Resetting iptables legacy"
+        echo "$iptables_reset" |iptables-legacy-restore ||echo "failed..."
+        echo "Resetting ip6tables legacy"
+        echo "$iptables_reset" |ip6tables-legacy-restore ||echo "failed..."
+        echo "Resetting iptables"
+        echo "$iptables_reset" |iptables-restore ||echo "failed..."
+        echo "Resetting ip6tables"
+        echo "$iptables_reset" |ip6tables-restore ||echo "failed..."
+        ;;
+    pf) 
+        echo "Resetting pf firewall not yet implemented"
+        ;;
+    nftables)
+        echo "Resetting nftables firewall not yet implemented"
+        ;;
+    on)
+        echo "Don't know which firewall to reset... No reset done!"
+        ;;
+    *)
+        ;;
+esac
 
-ip6tables-restore <<EOF-EOF-EOF
-*raw
-:PREROUTING ACCEPT [0:0]
-:OUTPUT ACCEPT [0:0]
-COMMIT
-*mangle
-:PREROUTING ACCEPT [0:0]
-:INPUT ACCEPT [0:0]
-:FORWARD ACCEPT [0:0]
-:OUTPUT ACCEPT [0:0]
-:POSTROUTING ACCEPT [0:0]
-COMMIT
-*nat
-:PREROUTING ACCEPT [0:0]
-:INPUT ACCEPT [0:0]
-:OUTPUT ACCEPT [0:0]
-:POSTROUTING ACCEPT [0:0]
-COMMIT
-*filter
-:INPUT DROP [0:0]
-:FORWARD DROP [0:0]
-:OUTPUT DROP [0:0]
-COMMIT
-EOF-EOF-EOF
 
 ##### And now start the hummingbird client
 
