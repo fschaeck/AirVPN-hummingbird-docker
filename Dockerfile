@@ -55,21 +55,9 @@ RUN strip /build/hummingbird/hummingbird
 
 FROM alpine
 
-ENV TINI_VERSION v0.19.0
-
-RUN set -eux; \
-    imageArch="$(apk --print-arch)"; \
-    case "${imageArch##*-}" in \
-        "amd64"|"x86_64" ) tiniArch="tini-static-amd64";;\
-	    "arm64"|"aarch64") tiniArch="tini-static-arm64";;\
-        "armhf"|"armv71" ) tiniArch="tini-static-armhf";;\
-        *) echo >&2 "tini-static does not support ${imageArch}"; exit 1 ;; \
-    esac; \
-    echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >>/etc/apk/repositories; \
+RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >>/etc/apk/repositories; \
     apk add --no-cache wget curl libxml2 lz4-libs lzo xz mbedtls \
-                       crypto++ iptables ip6tables kmod && \
-    wget -O /tini "https://github.com/krallin/tini/releases/download/$TINI_VERSION/$tiniArch" && \
-    chmod +x /tini
+                       tini crypto++ iptables ip6tables kmod
 
 # RUN apk add --no-cache gdbserver iputils-ping traceroute telnet iproute2 vim && \
 
@@ -79,5 +67,5 @@ COPY entrypoint.sh healthcheck.sh /
 HEALTHCHECK --interval=5s --timeout=1s --start-period=5s \
     CMD /healthcheck.sh
 
-ENTRYPOINT ["/tini", "--", "/entrypoint.sh"]
+ENTRYPOINT ["/sbin/tini", "--", "/entrypoint.sh"]
 
