@@ -64,10 +64,7 @@ changes in afore mentioned master branch.
 
 Execute the Docker build command:
 
->`docker build -t airvpn-hummingbird -f Dockerfile.debian .`
-or
->`docker build -t airvpn-hummingbird -f Dockerfile.alpine .`
-
+>`docker build -t airvpn-hummingbird -f Dockerfile .`
 from the root-directory of this repository. It will result in a new image
 **`airvpn-hummingbird`** in your Docker environment.
 
@@ -85,7 +82,7 @@ Another example would be:
 
 >`docker run -ti --cap-add=NET_ADMIN --sysctl net.ipv6.conf.all.disable_ipv6=0 --cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro --device /dev/net:/dev/net -v <config-dir>:/config:ro airvpn-hummingbird <hummingbird-command-options>`
 
-Here the `<hummingbird-command-options>` should contain a reference to an existing file in `<config-dir>`i. The path to
+Here the `<hummingbird-command-options>` should contain a reference to an existing file in `<config-dir>`. The path to
 the config file in `<hummingbird-command-options>` must be specified as an absolute path **INSIDE** the container, i.e. "/config/Sweden/AirVPN_Sweden_UDP-1194.ovpn".
 
 The part `--cap-add=SYS_MODULE -v /lib/modules:/lib/modules:ro` of the command is necessary to allow the container to actually
@@ -94,7 +91,7 @@ It is best, if you choose the network lock type you are already using on the hos
 load the modules on startup. Also note, that you might need to change the image to contain the other firewall executables, since
 this Dockerfile only makes sure that the iptables packages are installed.
 
-`--sysctl net.ipv6.conf.all.disable_ipv6=0` is required to allow the hummingbird client to modify IPv6 routes. Otherwise IPv6 tunneling woh't work.
+`--sysctl net.ipv6.conf.all.disable_ipv6=0` is required to allow the hummingbird client to modify IPv6 routes. Otherwise IPv6 tunneling won't work.
 
 Adding `--verbose` to the docker run command's `<hummingbird-command-options>` will produce listings to stderr of all
 commands with their input and output that get executed by the hummingbird client in the docker image. A good way to figure
@@ -169,7 +166,10 @@ website in your account's [Client Area](https://airvpn.org/generator/)
 
 #### Start a connection
 
->`<hummingbird-command-options> = /config/your_openvpn_file.ovpn`
+To simply start a connection using the docker image, you can replace the
+<hummingbird-command-options> part in above `docker run` example with just i.e.
+`/config/your_openvpn_file.ovpn` thus specifying nothing other than the profile
+the hummingbird-client should use for the connection. The defaults will fill in the rest.
 
 
 #### Stop a connection
@@ -179,12 +179,14 @@ STDIN open by supplying the -i to the docker run command.
 Otherwise issue a `docker stop airvpn-hummingbird` to stop the container.
 
 The client will initiate the disconnection process and will restore the containers original network
-settings according to your options.
+settings to what they were before the client started.
 
 
 #### Start a connection with a specific cipher
 
->`<hummingbird-command-options> = --ncp-disable --cipher CHACHA20-POLY1305 /config/your_openvpn_file.ovpn`
+Replacing `<hummingbird-command-options>` with `--ncp-disable --cipher CHACHA20-POLY1305 /config/your_openvpn_file.ovpn`
+will make the client use the profile `/config/your_openvpn_file.ovpn` but change the cipher to CHACHA20-POLY1305 when
+connecting to the server.
 
 **Please note**: in order to properly work, the server you are connecting to
 must support the cipher specified with the `--cipher` option.
@@ -192,12 +194,17 @@ must support the cipher specified with the `--cipher` option.
 
 #### Disable the network filter and lock
 
->`<hummingbird-command-options> = --network-lock off /config/your_openvpn_file.ovpn`
+To disable the client's built-in network-lock replace `<hummingbird-command-options>`
+with `--network-lock off /config/your_openvpn_file.ovpn`. The default for the network
+lock is `on`.
 
 
 #### Ignore the DNS servers pushed by the VPN server
 
->`<hummingbird-command-options> = --ignore-dns-push /config/your_openvpn_file.ovpn`
+Specifying `--ignore-dns-push /config/your_openvpn_file.ovpn` for
+`<hummingbird-command-options>` allows to keep the container's DNS
+resolution as it is, disabling the VPN server changing the name servers
+on connection.
 
 
 **Please note**: the above options can be combined together according to their
