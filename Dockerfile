@@ -1,5 +1,5 @@
-ARG HUMMINGBIRD_VERSION=v1.1.4
-ARG OPENVPN3_AIRVPN_VERSION=2022-03-01
+ARG HUMMINGBIRD_VERSION=v1.2.0-1
+ARG OPENVPN3_AIRVPN_VERSION=v3.8.2
 
 FROM alpine AS airvpn-hummingbird-build
 
@@ -10,7 +10,7 @@ WORKDIR /build/hummingbird
 RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >>/etc/apk/repositories
 RUN apk add --no-cache build-base curl git lz4-dev mbedtls-dev \
                        mlocate bash asio-dev curl-dev libxml2-dev \
-                       lzo-dev xz-dev crypto++-dev 
+                       lzo-dev zstd-dev xz-dev crypto++-dev
 RUN cd /build && \
     echo "Cloning git repository fschaeck/opnevpn3-airvpn version ${OPENVPN3_AIRVPN_VERSION}" && \
     git clone https://github.com/fschaeck/openvpn3-airvpn.git && \
@@ -19,12 +19,10 @@ RUN cd /build && \
     cd /build && \
     echo "Cloning gitlab repository fschaeckermann/hummingbird version ${HUMMINGBIRD_VERSION}" && \
     git clone https://gitlab.com/fschaeckermann/hummingbird.git && \
-    echo "Cloned 1" && \
     cd hummingbird && \
-    echo "Cloned 2" && \
-    git checkout "${HUMMINGBIRD_VERSION}" && \
-    echo "Cloned 3"
-#    -O0 -ggdb -g3
+    git checkout "${HUMMINGBIRD_VERSION}"
+
+    #    -O0 -ggdb -g3
 RUN cd /build/hummingbird && \
     export PATH && \
     g++ -fwhole-program \
@@ -64,6 +62,7 @@ RUN cd /build/hummingbird && \
         -llz4 \
         -lxml2 \
         -llzma \
+        -lzstd \
         -lcryptopp \
         -lcurl \
         -o hummingbird
