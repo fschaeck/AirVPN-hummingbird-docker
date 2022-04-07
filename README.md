@@ -2,8 +2,8 @@
 
 #### AirVPN's free and open source OpenVPN 3 client based on AirVPN's OpenVPN 3 library fork - now running in a Docker container
 
-### Version 1.1.2-1 - Release date 6th February 2022 - patched to run in a docker container and based on offical version
-#### Version 1.1.2 - Release date 4 June 2021
+### Version 1.2.0-1 - Release date 5th April 2022 - patched to run in a docker container and based on offical version
+###i# Version 1.2.0 - Release date 22 March 2022
 
 ## Prolog
 
@@ -103,59 +103,60 @@ out, what exactly is being done for setting up the network lock, in case there a
 
 If you run the container without any `<hummingbird-command-options>` it will display its help:
 
->`Hummingbird - AirVPN OpenVPN 3 Client 1.1.3 - 1 December 2021`  
->  
->`usage: hummingbird [options] <config-file>`  
->`--help, -h            : show this help page`  
->`--version, -v         : show version info`  
->`--verbose, -V         : print all executed commands, even if successful`  
->`--eval, -e            : evaluate profile only (standalone)`  
->`--username, -u        : username`  
->`--password, -p        : password`  
->`--response, -r        : static response`  
->`--dc, -D              : dynamic challenge/response cookie`  
->`--cipher, -C          : encrypt packets with specific cipher algorithm (alg)`  
->`--proto, -P           : protocol override (udp|tcp)`  
->`--server, -s          : server override`  
->`--port, -R            : port override`  
->`--tcp-queue-limit, -l : size of TCP packet queue (1-65535, default 8192)`  
->`--ncp-disable, -n     : disable negotiable crypto parameters`  
->`--network-lock, -N    : network filter and lock mode (on|iptables|nftables|pf|off, default on)`  
+>`Hummingbird - AirVPN OpenVPN 3 Client 1.2.0 - 22 March 2022`
+>
+>`usage: hummingbird [options] <config-file>`
+>
+>`--help, -h            : show this help page`
+>`--version, -v         : show version info`
+>`--verbose, -V         : print all executed commands, even if successful`
+>`--eval, -e            : evaluate profile only (standalone)`
+>`--username, -u        : username`
+>`--password, -p        : password`
+>`--response, -r        : static response`
+>`--dc, -D              : dynamic challenge/response cookie`
+>`--cipher, -C          : encrypt packets with specific cipher algorithm (alg)`
+>`--proto, -P           : protocol override (udp|tcp)`
+>`--server, -s          : server override`
+>`--port, -R            : port override`
+>`--tcp-queue-limit, -l : size of TCP packet queue (1-65535, default 8192)`
+>`--ncp-disable, -n     : disable negotiable crypto parameters`
+>`--network-lock, -N    : network filter and lock mode (on|iptables|nftables|pf|off, default on)`
 >`--bypass-vpn, -B      : add routes and network filter expressions to bypass vpn for i.e. local servers (not working for IPv6 yet)`
->`--gui-version, -E     : set custom gui version (text)`  
->`--ignore-dns-push, -i : ignore DNS push request and use system DNS settings`  
->`--combined, -o        : combined IPv4/IPv6 tunnel (yes|no|default)`  
->`--timeout, -t         : timeout`  
->`--compress, -c        : compression mode (yes|no|asym)`  
->`--pk-password, -z     : private key password`  
->`--tvm-override, -M    : tls-version-min override (disabled, default, tls_1_x)`  
->`--tcprof-override, -X : tls-cert-profile override (legacy, preferred, etc.)`  
->`--proxy-host, -y      : HTTP proxy hostname/IP`  
->`--proxy-port, -q      : HTTP proxy port`  
->`--proxy-username, -U  : HTTP proxy username`  
->`--proxy-password, -W  : HTTP proxy password`  
->`--proxy-basic, -b     : allow HTTP basic auth`  
->`--alt-proxy, -A       : enable alternative proxy module`  
->`--cache-password, -H  : cache password`  
->`--no-cert, -x         : disable client certificate`  
->`--def-keydir, -k      : default key direction ('bi', '0', or '1')`  
->`--ssl-debug           : SSL debug level`  
->`--auto-sess, -a       : request autologin session`  
->`--auth-retry, -Y      : retry connection on auth failure`  
->`--persist-tun, -j     : keep TUN interface open across reconnects`  
->`--peer-info, -I       : peer info key/value list in the form K1=V1,K2=V2,...`  
->`--gremlin, -G         : gremlin info (send_delay_ms, recv_delay_ms, send_drop_prob, recv_drop_prob)`  
->`--epki-ca             : simulate external PKI cert supporting intermediate/root certs`  
->`--epki-cert           : simulate external PKI cert`  
->`--epki-key            : simulate external PKI private key`  
->`--recover-network     : recover network settings after a crash or unexpected exit`  
->  
->`Open Source Project by AirVPN (https://airvpn.org)`  
->  
->`Linux and macOS design, development and coding by ProMIND`  
->  
->`Special thanks to the AirVPN community for the valuable help,`  
->`support, suggestions and testing.`  
+>`--gui-version, -E     : set custom gui version (text)`
+>`--ignore-dns-push, -i : ignore DNS push request and use system DNS settings`
+>`--allowuaf, -6        : allow unused address families (yes|no|default)`
+>`--timeout, -t         : timeout`
+>`--compress, -c        : compression mode (yes|no|asym)`
+>`--pk-password, -z     : private key password`
+>`--tvm-override, -M    : tls-version-min override (disabled, default, tls_1_x)`
+>`--tcprof-override, -X : tls-cert-profile override (legacy, preferred, etc.)`
+>`--proxy-host, -y      : HTTP proxy hostname/IP`
+>`--proxy-port, -q      : HTTP proxy port`
+>`--proxy-username, -U  : HTTP proxy username`
+>`--proxy-password, -W  : HTTP proxy password`
+>`--proxy-basic, -b     : allow HTTP basic auth`
+>`--alt-proxy, -A       : enable alternative proxy module`
+>`--cache-password, -H  : cache password`
+>`--no-cert, -x         : disable client certificate`
+>`--def-keydir, -k      : default key direction ('bi', '0', or '1')`
+>`--ssl-debug           : SSL debug level`
+>`--auto-sess, -a       : request autologin session`
+>`--auth-retry, -Y      : retry connection on auth failure`
+>`--persist-tun, -j     : keep TUN interface open across reconnects`
+>`--peer-info, -I       : peer info key/value list in the form K1=V1,K2=V2,...`
+>`--gremlin, -G         : gremlin info (send_delay_ms, recv_delay_ms, send_drop_prob, recv_drop_prob)`
+>`--epki-ca             : simulate external PKI cert supporting intermediate/root certs`
+>`--epki-cert           : simulate external PKI cert`
+>`--epki-key            : simulate external PKI private key`
+>`--recover-network     : recover network settings after a crash or unexpected exit`
+>
+>`Open Source Project by AirVPN (https://airvpn.org)`
+>
+>`Linux and macOS design, development and coding by ProMIND`
+>
+>`Special thanks to the AirVPN community for the valuable help,`
+>`support, suggestions and testing.`
 
 *Note that --verbose and --bypass-vpn are additions coming with the docker-enabled hummingbird
 client and are not part of the official hummingbird client.*
@@ -288,7 +289,7 @@ Thus no specific user action is needed when using hummingbird in this docker con
 In case of problems not fixed with this pre-caution, you may have to delete the container and re-create
 it with another docker run command.
 
-But in thsat case, you'll have to stop, delete and re-create
+But in that case, you'll have to stop, delete and re-create
 all containers using the airvpn-hummingbird container as their network-providing container, since
 that connection is established on the base of the container's UUID, which changes if you
 delete and re-create the airvpn-hummingbird container.
