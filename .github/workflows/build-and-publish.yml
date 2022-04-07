@@ -3,13 +3,13 @@ name: Build and Publish AirVPN hummingbird Image
 on:
   # run it on push to the default repository branch
   push:
-    branches:
-      - master
-      - stable
+  #  branches:
+  #    - master
+  #    - stable
     tags:
       - '*'
   # run it during pull request
-  pull_request:
+  # pull_request:
 
 jobs:
   # define job to build and publish docker image
