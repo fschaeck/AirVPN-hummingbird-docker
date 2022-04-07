@@ -12,14 +12,15 @@ in an Alpine-Linux image - required a few patches to the client as it is
 published by AirVPN on gitlab.
 
 I tried to get my patches into their repository at gitlab but there was zero reaction. Thus
-I created this github repo, modified my Dockerfiles accordingly and now have an independent
-Dockerfile downloading the required sources from their current repository at
-https://gitlab.com/AirVPN/hummingbird/-/archive/master/hummingbird-master.tar.bz2
+I created forks of the hummingbird repo on gitlab and the openvpn3-airvpn repo on github,
+made my modifications in those and use my own repos to build hummingbird in this Dockerfile.
 
-Please open an Issue against this repository, if any problems arise building the image, since
-there are no releases in the gitlab repository and this Dockerfile is downloading whatever is
-currently in the master branch. Thus the patches may not work anymore if the client code
-changes in afore mentioned master branch.
+I'll keep my repos up-to-date with the ones from AirVPN as I find the time, when they release
+updates and change this repo's version tag once that is done.
+
+Please open an Issue against this repository, if any problems arise building the image or running
+the client inside of it. If it turns out, that the problem lies within the original code, I'll
+"forward" the issue to those upstream repositories.
 
 **Main features:**
 

@@ -1,14 +1,30 @@
+ARG HUMMINGBIRD_VERSION=v1.1.4
+ARG OPENVPN3_AIRVPN_VERSION=2022-03-01
+
 FROM alpine AS airvpn-hummingbird-build
+
+ARG HUMMINGBIRD_VERSION
+ARG OPENVPN3_AIRVPN_VERSION
+
 WORKDIR /build/hummingbird
 RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >>/etc/apk/repositories
-RUN apk add --no-cache build-base wget git lz4-dev mbedtls-dev \
+RUN apk add --no-cache build-base curl git lz4-dev mbedtls-dev \
                        mlocate bash asio-dev curl-dev libxml2-dev \
-                       lzo-dev xz-dev crypto++-dev && \
-    cd /build && \
+                       lzo-dev xz-dev crypto++-dev 
+RUN cd /build && \
+    echo "Cloning git repository fschaeck/opnevpn3-airvpn version ${OPENVPN3_AIRVPN_VERSION}" && \
     git clone https://github.com/fschaeck/openvpn3-airvpn.git && \
-    git clone https://gitlab.com/fschaeckermann/hummingbird.git
-
-    #    -O0 -ggdb -g3 \\
+    cd openvpn3-airvpn && \
+    git checkout "${OPENVPN3_AIRVPN_VERSION}" && \
+    cd /build && \
+    echo "Cloning gitlab repository fschaeckermann/hummingbird version ${HUMMINGBIRD_VERSION}" && \
+    git clone https://gitlab.com/fschaeckermann/hummingbird.git && \
+    echo "Cloned 1" && \
+    cd hummingbird && \
+    echo "Cloned 2" && \
+    git checkout "${HUMMINGBIRD_VERSION}" && \
+    echo "Cloned 3"
+#    -O0 -ggdb -g3
 RUN cd /build/hummingbird && \
     export PATH && \
     g++ -fwhole-program \
@@ -34,14 +50,14 @@ RUN cd /build/hummingbird && \
         -I/build/openvpn3-airvpn \
         -I/build/openvpn3-airvpn/openvpn \
         -I/usr/include/libxml2 \
-        /build/hummingbird/src/hummingbird.cpp \
-        /build/hummingbird/src/localnetwork.cpp \
-        /build/hummingbird/src/dnsmanager.cpp \
-        /build/hummingbird/src/netfilter.cpp \
-        /build/hummingbird/src/airvpntools.cpp \
-        /build/hummingbird/src/optionparser.cpp \
-        /build/hummingbird/src/base64.cpp \
-        /build/hummingbird/src/execproc.c \
+        src/hummingbird.cpp \
+        src/localnetwork.cpp \
+        src/dnsmanager.cpp \
+        src/netfilter.cpp \
+        src/airvpntools.cpp \
+        src/optionparser.cpp \
+        src/base64.cpp \
+        src/execproc.c \
         -lmbedtls \
         -lmbedx509 \
         -lmbedcrypto \
