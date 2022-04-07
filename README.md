@@ -2,8 +2,8 @@
 
 #### AirVPN's free and open source OpenVPN 3 client based on AirVPN's OpenVPN 3 library fork - now running in a Docker container
 
-### Version 1.1.4 - Release date 6th February 2022
-#### based on official Version 1.1.2 - Release date 4 June 2021 - and patched to run in a docker container
+### Version 1.1.2-1 - Release date 6th February 2022 - patched to run in a docker container and based on offical version
+#### Version 1.1.2 - Release date 4 June 2021
 
 ## Prolog
 
